@@ -1,0 +1,98 @@
+categories:
+  - "Executive Leadership"
+  - "Business Strategy and Development"
+  - "Medical Roles"
+  - "Operations"
+  - "Product and User Experience"
+  - "Technology and Engineering"
+  - "Other"
+
+system_message: "Classify the job title exclusively into one of the following categories:({categories_str})"
+
+drive:
+  SCOPE:
+    - "https://www.googleapis.com/auth/drive"
+    - "https://spreadsheets.google.com/feeds"
+    - "https://www.googleapis.com/auth/spreadsheets"
+    - "https://www.googleapis.com/auth/drive.file"
+
+
+spreadsheet_id: "1HxZu_yZ8GjXCG_BH_-jXs4H1KtRqHFzaLR_c1tLBSVE"
+range_name: "data"
+columns: [ "title", "label" ]
+
+dataset:
+  test_size: 0.98
+  shuffle: true
+
+model:
+  pretrained_model_name_or_path: "meta-llama/Llama-2-7b-chat-hf"
+  new_model: "bla3x"
+  AutoModelForCausalLM:
+    device_map: { "": 0 }
+  bnb_4bit_compute_dtype: "float16"
+  BitsAndBytesConfig:
+    load_in_4bit: true
+    bnb_4bit_quant_type: "nf4"
+    bnb_4bit_use_double_quant: false
+  AutoTokenizer:
+    trust_remote_code: true
+    pad_token: "</s>"
+    padding_side: "right"
+    use_default_system_prompt: true
+  reload:
+    AutoModelForCausalLM:
+      low_cpu_mem_usage: true
+      return_dict: true
+  push_to_hub:
+    model:
+      use_temp_dir: false
+    tokenizer:
+      use_temp_dir: false
+
+trainer:
+  TrainingArguments:
+    output_dir: "./results"
+    num_train_epochs: 1
+    per_device_train_batch_size: 4
+    gradient_accumulation_steps: 1
+    optim: "paged_adamw_32bit"
+    save_steps: 0
+    logging_steps: 25
+    learning_rate: 0.0002
+    weight_decay: 0.001
+    fp16: false
+    bf16: false
+    max_grad_norm: 0.3
+    max_steps: -1
+    warmup_ratio: 0.03
+    group_by_length: true
+    lr_scheduler_type: "cosine"
+    report_to: "tensorboard"
+  LoraConfig:
+    lora_alpha: 16
+    lora_dropout: 0.1
+    r: 64
+    bias: "none"
+    task_type: "CAUSAL_LM"
+  SFTTrainer:
+    dataset_text_field: "text"
+    max_seq_length: null
+    packing: false
+
+pipeline:
+  return_full_text: true
+  torch_dtype: "bfloat16"
+  device_map: "auto"
+  max_new_tokens: 10
+  do_sample: true
+  top_k: 10
+  num_return_sequences: 1
+  eos_token_id: 2
+
+HuggingFacePipeline:
+  model_kwargs:
+    temperature: 0
+
+PromptTemplate:
+  input_variables: [ "title" ]
