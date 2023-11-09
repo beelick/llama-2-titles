@@ -1,13 +1,15 @@
 categories:
-  - "Executive Leadership"
-  - "Business Strategy and Development"
-  - "Medical Roles"
-  - "Operations"
-  - "Product and User Experience"
-  - "Technology and Engineering"
-  - "Other"
+  - "healthtech"
+  - "healthcare"
+  - "other"
 
-system_message: "Classify the job title exclusively into one of the following categories:({categories_str})"
+system_message: |
+  Categorize the company based on its description into one of the following categories: ({categories_str}).
+  - 'healthtech' refers to companies operating at the intersection of healthcare and digital technologies (IT, web, mobile, crypto, cloud, AI, data-driven, etc.).
+  - 'healthcare' encompasses a broad range of healthcare-related companies.
+  - 'other' includes companies unrelated to 'healthcare' or 'healthtech'.
+  Please provide a one-sentence summary that avoids pronouns and uses the term 'company' or the company's name instead. The output should be a valid JSON string with "category" and "summary" fields containing the category name and the one-sentence summary, respectively. Do not explain why the company falls into a specific category; just state the category and summary.
+
 
 drive:
   SCOPE:
@@ -18,8 +20,8 @@ drive:
 
 
 spreadsheet_id: "1HxZu_yZ8GjXCG_BH_-jXs4H1KtRqHFzaLR_c1tLBSVE"
-range_name: "data"
-columns: [ "title", "label" ]
+range_name: "company"
+columns: [ "desc", "label" ]
 
 dataset:
   test_size: 0.05
@@ -27,7 +29,7 @@ dataset:
 
 model:
   pretrained_model_name_or_path: "meta-llama/Llama-2-7b-chat-hf"
-  new_model: "healthcare-titles"
+  new_model: "llama-2-7b-healthtech"
   AutoModelForCausalLM:
     device_map: { "": 0 }
   bnb_4bit_compute_dtype: "float16"
@@ -53,7 +55,7 @@ model:
 trainer:
   TrainingArguments:
     output_dir: "./results"
-    num_train_epochs: 25
+    num_train_epochs: 1
     per_device_train_batch_size: 4
     gradient_accumulation_steps: 1
     optim: "paged_adamw_32bit"
@@ -95,4 +97,4 @@ HuggingFacePipeline:
     temperature: 0
 
 PromptTemplate:
-  input_variables: [ "title" ]
+  input_variables: [ "desc" ]

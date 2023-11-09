@@ -39,7 +39,7 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
 def get_config():
-    with open("config.yaml", "r") as f:
+    with open("config_company.yaml", "r") as f:
        return yaml.safe_load(f)
 
 
@@ -51,7 +51,7 @@ def load_huggingface_auth():
 
 
 def generate_prompt(prompt_template, batch):
-    return {"text": [prompt_template.generate_prompt(title, label) for title, label in zip(batch["title"], batch["label"])]}
+    return {"text": [prompt_template.generate_prompt(title, label) for title, label in zip(batch["desc"], batch["label"])]}
 
 
 def clean_output(output, categories):
@@ -195,22 +195,53 @@ def finetune(cfg):
 
     logging.set_verbosity(logging.CRITICAL)
     llm = HuggingFacePipeline(pipeline=pipe, **cfg["HuggingFacePipeline"])
-    title = "Vice President and Chief Information Officer"
-    prompt = prompt_template.generate_prompt("{title}")
+    desc = "Vice President and Chief Information Officer"
+    prompt = prompt_template.generate_prompt("{desc}")
     prompt = PromptTemplate(template=prompt, **cfg["PromptTemplate"])
     llm_chain = LLMChain(prompt=prompt, llm=llm)
-    output = llm_chain.run(title), categories
+    output = llm_chain.run(desc), categories
     print(output)
 
-def test_hugging_face_connection():
-    api = load_huggingface_auth()
-    print(f"Successfully retrieved {api.list_models()} models from Hugging Face Hub.")
 
 
-if __name__ == "__main__":
+
+def chain():
     cfg = get_config()
-    finetune(cfg)
+    load_huggingface_auth()
+    categories = cfg["categories"]
+    system_message = cfg["system_message"].format(categories_str=", ".join([f"'{c}'" for c in categories]))
+    prompt_template = Llama2PromptTemplate(system_message)
+    drive = Drive(cfg["drive"])
+    data = Data()
+    data.authorize(drive.creds)
 
-    model = Model(cfg["model"])
-    model.reload_model()
-    model.push_to_hub()
+    model = "meta-llama/Llama-2-7b-chat-hf"
+
+    tokenizer = AutoTokenizer.from_pretrained(model)
+
+    pipe= pipeline(
+        "text-generation",
+        model=model,
+        tokenizer=tokenizer,
+        torch_dtype=torch.bfloat16,
+        device_map="auto",
+        max_length=500,
+        do_sample=True,
+        top_k=30,
+        num_return_sequences=1,
+        eos_token_id=tokenizer.eos_token_id
+    )
+
+    llm = HuggingFacePipeline(pipeline=pipe, model_kwargs={"temperature": 0})
+    logging.set_verbosity(logging.CRITICAL)
+    prompt = prompt_template.generate_prompt("{desc}")
+    prompt = PromptTemplate(template=prompt, **cfg["PromptTemplate"])
+    return LLMChain(prompt=prompt, llm=llm)
+
+# %%
+llm_chain = chain()
+
+# %%
+desc = """MERIT is a clinical trial endpoint service provider specializing in the ophthalmology, respiratory, and oncology therapeutic areas. They partner with cros and pharmaceutical and biotech companies to deliver reliable endpoint services in multi-regional clinical trials."""
+output = llm_chain.run(desc)
+print(output)
